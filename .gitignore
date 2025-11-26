@@ -28,5 +28,26 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application-specific
+m_backuper
+*.db
+*.db-shm
+*.db-wal
+.m_backuper/
+
+# Config (but keep example)
+config.yaml
+!configs/config.example.yaml
+
+# Logs
+*.log

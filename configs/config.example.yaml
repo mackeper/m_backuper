@@ -1,0 +1,49 @@
+# m_backuper configuration file
+# Copy this file to ~/.m_backuper/config.yaml and customize for your needs
+
+# Backup sets define source-destination pairs for backups
+backup_sets:
+  - name: photos
+    sources:
+      - /storage/emulated/0/DCIM
+      - /storage/emulated/0/Pictures
+    destination: /mnt/external/backup/photos
+    excludes:
+      - "*.tmp"
+      - ".thumbnails/**"
+      - "*.cache"
+
+  - name: documents
+    sources:
+      - /storage/emulated/0/Documents
+      - /storage/emulated/0/Download
+    destination: /mnt/external/backup/documents
+    excludes:
+      - "*.bak"
+      - "~$*"  # Temporary Office files
+
+# Duplicate detection settings
+duplicates:
+  # Minimum file size to consider for duplicate detection (in bytes)
+  # Default: 1048576 (1MB) - smaller files are skipped for performance
+  min_file_size: 1048576
+
+  # Paths to scan for duplicates
+  scan_paths:
+    - /mnt/external/backup
+
+# Performance tuning
+concurrency:
+  # Number of parallel workers for hash calculation
+  # 0 = use number of CPU cores (recommended)
+  hash_workers: 0
+
+  # Number of parallel workers for file copying
+  # Default: 2 (higher values may not help due to I/O limits)
+  copy_workers: 2
+
+# Database settings
+database:
+  # Path to SQLite database file
+  # Default: ~/.m_backuper/index.db
+  path: ~/.m_backuper/index.db
