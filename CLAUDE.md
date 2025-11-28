@@ -384,6 +384,12 @@ CLI Command → Operations (business logic) → Structured Data → Display (for
 
 ## Git Commit Guidelines
 
+**Before Committing**:
+- ALWAYS run `go build -o m_backuper` to ensure code compiles
+- ALWAYS run `go test ./...` to ensure all tests pass
+- Only create commits when build and tests are successful
+- Fix any compilation errors or test failures before committing
+
 **Commit Message Format**:
 - NEVER include Claude attribution or AI-generated markers in commit messages
 - Do NOT add lines like "🤖 Generated with Claude Code"
