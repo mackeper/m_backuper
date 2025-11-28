@@ -1,10 +1,10 @@
 # m_backuper
 
-CLI tool for backing up files and detecting duplicates using SHA256 content hashing.
+CLI and TUI tool for backing up files and detecting duplicates using SHA256 content hashing.
 
 ## Features
 
-- Full copy backups with parallel SHA256 hashing • SQLite-indexed duplicate detection • Multiple keep strategies (oldest/newest/first/shortest) • CLI config management • Database statistics • Dry-run mode • Exclusion patterns • Progress tracking
+- **Interactive TUI** with config manager, stats viewer, duplicate browser, and backup runner • Full copy backups with parallel SHA256 hashing • SQLite-indexed duplicate detection • Multiple keep strategies (oldest/newest/first/shortest) • CLI config management • Real-time progress tracking • Database statistics • Dry-run mode • Exclusion patterns
 
 ## Installation
 
@@ -20,6 +20,17 @@ go install github.com/mackeper/m_backuper@latest
 ```
 
 ## Quick Start
+
+### Interactive TUI (Recommended)
+
+```bash
+m_backuper tui                      # Launch interactive terminal UI
+```
+
+Navigate with arrow keys or j/k, press Enter to select, Esc to go back.
+Manage configs, view stats, browse duplicates, and run backups interactively!
+
+### CLI Commands
 
 ```bash
 # 1. Add backup sets (no manual YAML editing!)
@@ -42,6 +53,7 @@ m_backuper clean --auto --keep oldest --dry-run  # Clean up
 
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
+| `tui` | Launch interactive terminal UI | - |
 | `backup [name]` | Run backup operation | `--all`, `--dry-run` |
 | `scan [path...]` | Index files and calculate hashes | `--min-size`, `--update-index` |
 | `list` | Show duplicate groups | `--sort` (size/count/wasted), `--format` (table/json), `--min-wasted` |
@@ -56,6 +68,7 @@ m_backuper clean --auto --keep oldest --dry-run  # Clean up
 
 **Examples:**
 ```bash
+m_backuper tui                               # Launch interactive TUI
 m_backuper config add photos --sources ~/Pictures --destination /mnt/backup
 m_backuper backup photos --dry-run           # Preview backup
 m_backuper backup --all -v                   # Backup all with verbose output
@@ -148,10 +161,10 @@ go build -o m_backuper          # Build
 
 ## Roadmap
 
-- [ ] TUI (Bubble Tea) • [ ] Incremental backups • [ ] Compression/encryption • [ ] Cloud backends (S3, GDrive) • [ ] Backup scheduling • [ ] Web interface
+- [x] TUI (Bubble Tea) ✓ • [ ] Incremental backups • [ ] Compression/encryption • [ ] Cloud backends (S3, GDrive) • [ ] Backup scheduling • [ ] Web interface
 
 ## Credits
 
-[Cobra](https://github.com/spf13/cobra) • [Viper](https://github.com/spf13/viper) • [go-sqlite3](https://github.com/mattn/go-sqlite3) • [go-humanize](https://github.com/dustin/go-humanize)
+[Cobra](https://github.com/spf13/cobra) • [Viper](https://github.com/spf13/viper) • [go-sqlite3](https://github.com/mattn/go-sqlite3) • [go-humanize](https://github.com/dustin/go-humanize) • [Bubbletea](https://github.com/charmbracelet/bubbletea) • [Bubbles](https://github.com/charmbracelet/bubbles) • [Lipgloss](https://github.com/charmbracelet/lipgloss)
 
 **Author:** Marcus Östling ([@mackeper](https://github.com/mackeper)) • **License:** MIT
