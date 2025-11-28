@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**m_backuper** is a Go CLI tool for backing up files and detecting duplicates using SHA256 content hashing. It uses SQLite for indexing and supports parallel processing. The codebase has been refactored into a clean, layered architecture with reusable packages that separate business logic from presentation.
+**m_backuper** is a Go CLI and TUI tool for backing up files and detecting duplicates using SHA256 content hashing. It provides both command-line and interactive terminal interfaces, uses SQLite for indexing, and supports parallel processing. The codebase features a clean, layered architecture with reusable packages that separate business logic from presentation, enabling both CLI and TUI to share the same core operations.
 
 ## Build & Test Commands
 
@@ -371,31 +371,40 @@ Schema is in `internal/index/db.go` `migrate()` method. Run automatically on `in
 
 1. **`list` doesn't scan filesystem** - it only queries the database. Use `scan` first to index files.
 2. **Config commands skip validation** - `config add` allows non-existent paths. They're validated when running `backup`.
-3. **PersistentPreRunE shared state** - All commands share `cfg`, `db`, `log` initialized in root.go. Don't re-initialize.
+3. **PersistentPreRunE shared state** - All commands (CLI and TUI) share `cfg`, `db`, `log` initialized in root.go. Don't re-initialize.
 4. **Worker pool channels** - Jobs channel is sent to workers, results channel is returned. Close jobs, wait for workers, then close results.
 5. **Backup engine flow** - The backup process is sequential: walk → hash → copy → index. Each stage feeds the next.
 6. **Operations return data, not formatted strings** - Use display.Formatter to format operation results for output.
 7. **Progress callbacks are optional** - CLI may ignore them, TUI uses them for real-time updates.
+8. **TUI screens need configPath** - Config screen requires configPath parameter to reload config after edits (not available in config.Config struct).
+9. **TUI lazy initialization** - Screens are created on first navigation, not at startup. Check for nil before delegating updates.
+10. **Config field names** - Use `cfg.BackupSets` (not `Backups`), `cfg.Database.Path` (config has no `ConfigPath` field).
 
 ## Code Organization Principles
 
 **Separation of Concerns**:
-- **operations/** - Business logic, no formatting
-- **display/** - Formatting logic, no business logic
-- **cmd/** - CLI interface, orchestrates operations + display
-- **internal/** - Core functionality, reusable
+- **operations/** - Business logic, no formatting (shared by CLI and TUI)
+- **display/** - Formatting logic, no business logic (used by CLI)
+- **tui/** - Interactive interface using Bubbletea (uses operations directly)
+- **cmd/** - CLI commands and TUI launcher, orchestrates operations + display
+- **internal/** - Core functionality, reusable across interfaces
 
 **Data Flow**:
 ```
 CLI Command → Operations (business logic) → Structured Data → Display (formatting) → Output
      ↓              ↓                            ↓                     ↓
   User Input   Progress Callbacks         Domain Models         Formatted Strings
+
+TUI Screen  → Operations (business logic) → Structured Data → TUI View (Bubbletea) → Render
+     ↓              ↓                            ↓                     ↓
+  User Input   Progress Callbacks         Domain Models         Styled Components
 ```
 
 **Reusability**:
-- Operations layer is CLI/TUI agnostic
-- Display layer supports multiple formats
-- Both can be used independently
+- Operations layer is CLI/TUI agnostic (core design principle)
+- Display layer provides CLI output formatting (table, json)
+- TUI layer provides interactive interface (Bubbletea)
+- All interfaces share the same business logic
 
 ## Git Commit Guidelines
 
