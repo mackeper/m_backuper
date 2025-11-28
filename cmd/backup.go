@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/mackeper/m_backuper/internal/backup"
+	"github.com/mackeper/m_backuper/internal/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -55,15 +55,15 @@ func runBackup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot specify backup set name with --all flag")
 	}
 
-	// Create backup engine
-	engine := backup.NewEngine(cfg, db, log)
+	// Create backup operation
+	backupOp := operations.NewBackupOperation(cfg, db, log)
 
 	ctx := context.Background()
 
 	if backupAll {
 		// Backup all sets
 		log.Info("backing up all configured backup sets")
-		results, err := engine.BackupAll(ctx, backupDryRun)
+		results, err := backupOp.BackupAll(ctx, backupDryRun, nil)
 		if err != nil {
 			return fmt.Errorf("backup all: %w", err)
 		}
@@ -92,7 +92,10 @@ func runBackup(cmd *cobra.Command, args []string) error {
 		backupSetName := args[0]
 		log.Info("starting backup", "backup_set", backupSetName)
 
-		result, err := engine.Backup(ctx, backupSetName, backupDryRun)
+		result, err := backupOp.Run(ctx, operations.BackupOptions{
+			BackupSetName: backupSetName,
+			DryRun:        backupDryRun,
+		})
 		if err != nil {
 			return fmt.Errorf("backup: %w", err)
 		}

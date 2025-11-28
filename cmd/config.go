@@ -3,11 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/mackeper/m_backuper/internal/configutil"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var configCmd = &cobra.Command{
@@ -100,16 +99,16 @@ func init() {
 }
 
 func runConfigInit(cmd *cobra.Command, args []string) error {
-	// Determine config path
-	home, err := os.UserHomeDir()
+	// Create manager
+	manager, err := configutil.NewManager(cfgFile)
 	if err != nil {
-		return fmt.Errorf("get home directory: %w", err)
+		return err
 	}
 
-	configDir := filepath.Join(home, ".m_backuper")
-	configPath := filepath.Join(configDir, "config.yaml")
+	configPath := manager.GetConfigPath()
 
 	// Check if config already exists
+	overwrite := false
 	if _, err := os.Stat(configPath); err == nil {
 		fmt.Printf("Configuration file already exists at: %s\n", configPath)
 		fmt.Print("Overwrite? (y/n): ")
@@ -121,66 +120,12 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 			fmt.Println("Aborted")
 			return nil
 		}
+		overwrite = true
 	}
 
-	// Create config directory
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("create config directory: %w", err)
-	}
-
-	// Example configuration content
-	exampleConfig := `# m_backuper configuration file
-
-# Backup sets define source-destination pairs for backups
-backup_sets:
-  - name: documents
-    sources:
-      - ~/Documents
-      - ~/Downloads
-    destination: /mnt/external/backup/documents
-    excludes:
-      - "*.tmp"
-      - "*.bak"
-      - ".cache/**"
-
-  # Add more backup sets as needed
-  # - name: photos
-  #   sources:
-  #     - ~/Pictures
-  #     - ~/DCIM
-  #   destination: /mnt/external/backup/photos
-  #   excludes:
-  #     - ".thumbnails/**"
-
-# Duplicate detection settings
-duplicates:
-  # Minimum file size to consider for duplicate detection (in bytes)
-  # Files smaller than this are skipped for performance
-  min_file_size: 1048576  # 1MB
-
-  # Paths to scan for duplicates
-  scan_paths:
-    - /mnt/external/backup
-
-# Performance tuning
-concurrency:
-  # Number of parallel workers for hash calculation
-  # 0 = use number of CPU cores (recommended)
-  hash_workers: 0
-
-  # Number of parallel workers for file copying
-  # Usually 2-4 is optimal due to I/O limits
-  copy_workers: 2
-
-# Database settings
-database:
-  # Path to SQLite database file
-  path: ~/.m_backuper/index.db
-`
-
-	// Write config file
-	if err := os.WriteFile(configPath, []byte(exampleConfig), 0644); err != nil {
-		return fmt.Errorf("write config file: %w", err)
+	// Initialize config
+	if err := manager.InitConfig(overwrite); err != nil {
+		return err
 	}
 
 	fmt.Printf("Configuration file created at: %s\n", configPath)
@@ -256,68 +201,21 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 func runConfigAdd(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// Get config file path
-	configPath, err := getConfigPath()
+	// Create manager
+	manager, err := configutil.NewManager(cfgFile)
 	if err != nil {
 		return err
 	}
 
-	// Read existing config or create new one
-	var configData map[string]interface{}
-
-	if data, err := os.ReadFile(configPath); err == nil {
-		if err := yaml.Unmarshal(data, &configData); err != nil {
-			return fmt.Errorf("parse config: %w", err)
-		}
-	} else {
-		// Initialize empty config structure
-		configData = map[string]interface{}{
-			"backup_sets": []interface{}{},
-			"duplicates": map[string]interface{}{
-				"min_file_size": 1048576,
-				"scan_paths":    []string{},
-			},
-			"concurrency": map[string]interface{}{
-				"hash_workers": 0,
-				"copy_workers": 2,
-			},
-			"database": map[string]interface{}{
-				"path": "~/.m_backuper/index.db",
-			},
-		}
+	// Add backup set
+	input := configutil.BackupSetInput{
+		Name:        name,
+		Sources:     addSources,
+		Destination: addDestination,
+		Excludes:    addExcludes,
 	}
 
-	// Get backup_sets array
-	backupSets, ok := configData["backup_sets"].([]interface{})
-	if !ok {
-		backupSets = []interface{}{}
-	}
-
-	// Check if backup set already exists
-	for _, bs := range backupSets {
-		bsMap, ok := bs.(map[string]interface{})
-		if ok && bsMap["name"] == name {
-			return fmt.Errorf("backup set '%s' already exists", name)
-		}
-	}
-
-	// Create new backup set
-	newBackupSet := map[string]interface{}{
-		"name":        name,
-		"sources":     addSources,
-		"destination": addDestination,
-	}
-
-	if len(addExcludes) > 0 {
-		newBackupSet["excludes"] = addExcludes
-	}
-
-	// Add to backup sets
-	backupSets = append(backupSets, newBackupSet)
-	configData["backup_sets"] = backupSets
-
-	// Write back to file
-	if err := writeConfigFile(configPath, configData); err != nil {
+	if err := manager.AddBackupSet(input); err != nil {
 		return err
 	}
 
@@ -334,50 +232,14 @@ func runConfigAdd(cmd *cobra.Command, args []string) error {
 func runConfigRemove(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// Get config file path
-	configPath, err := getConfigPath()
+	// Create manager
+	manager, err := configutil.NewManager(cfgFile)
 	if err != nil {
 		return err
 	}
 
-	// Read existing config
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("read config: %w", err)
-	}
-
-	var configData map[string]interface{}
-	if err := yaml.Unmarshal(data, &configData); err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-
-	// Get backup_sets array
-	backupSets, ok := configData["backup_sets"].([]interface{})
-	if !ok {
-		return fmt.Errorf("no backup sets found in config")
-	}
-
-	// Find and remove the backup set
-	found := false
-	newBackupSets := make([]interface{}, 0, len(backupSets))
-
-	for _, bs := range backupSets {
-		bsMap, ok := bs.(map[string]interface{})
-		if ok && bsMap["name"] == name {
-			found = true
-			continue // Skip this one (remove it)
-		}
-		newBackupSets = append(newBackupSets, bs)
-	}
-
-	if !found {
-		return fmt.Errorf("backup set '%s' not found", name)
-	}
-
-	configData["backup_sets"] = newBackupSets
-
-	// Write back to file
-	if err := writeConfigFile(configPath, configData); err != nil {
+	// Remove backup set
+	if err := manager.RemoveBackupSet(name); err != nil {
 		return err
 	}
 
@@ -387,27 +249,19 @@ func runConfigRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigList(cmd *cobra.Command, args []string) error {
-	// Load config file without validation
-	configPath, err := getConfigPath()
+	// Create manager
+	manager, err := configutil.NewManager(cfgFile)
 	if err != nil {
 		return err
 	}
 
-	data, err := os.ReadFile(configPath)
+	// List backup sets
+	backupSets, err := manager.ListBackupSets()
 	if err != nil {
-		fmt.Println("No backup sets configured")
-		fmt.Println("\nTo add a backup set, run:")
-		fmt.Println("  m_backuper config add <name> --sources <paths> --destination <path>")
-		return nil
+		return err
 	}
 
-	var configData map[string]interface{}
-	if err := yaml.Unmarshal(data, &configData); err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-
-	backupSets, ok := configData["backup_sets"].([]interface{})
-	if !ok || len(backupSets) == 0 {
+	if len(backupSets) == 0 {
 		fmt.Println("No backup sets configured")
 		fmt.Println("\nTo add a backup set, run:")
 		fmt.Println("  m_backuper config add <name> --sources <paths> --destination <path>")
@@ -417,76 +271,14 @@ func runConfigList(cmd *cobra.Command, args []string) error {
 	fmt.Println("Backup Sets:")
 	fmt.Println("============")
 	for i, bs := range backupSets {
-		bsMap, ok := bs.(map[string]interface{})
-		if !ok {
-			continue
+		fmt.Printf("\n%d. %s\n", i+1, bs.Name)
+		if len(bs.Sources) > 0 {
+			fmt.Printf("   Sources: %s\n", strings.Join(bs.Sources, ", "))
 		}
-
-		name, _ := bsMap["name"].(string)
-		destination, _ := bsMap["destination"].(string)
-
-		var sources []string
-		if srcList, ok := bsMap["sources"].([]interface{}); ok {
-			for _, src := range srcList {
-				if srcStr, ok := src.(string); ok {
-					sources = append(sources, srcStr)
-				}
-			}
+		fmt.Printf("   Destination: %s\n", bs.Destination)
+		if len(bs.Excludes) > 0 {
+			fmt.Printf("   Excludes: %s\n", strings.Join(bs.Excludes, ", "))
 		}
-
-		var excludes []string
-		if excList, ok := bsMap["excludes"].([]interface{}); ok {
-			for _, exc := range excList {
-				if excStr, ok := exc.(string); ok {
-					excludes = append(excludes, excStr)
-				}
-			}
-		}
-
-		fmt.Printf("\n%d. %s\n", i+1, name)
-		if len(sources) > 0 {
-			fmt.Printf("   Sources: %s\n", strings.Join(sources, ", "))
-		}
-		fmt.Printf("   Destination: %s\n", destination)
-		if len(excludes) > 0 {
-			fmt.Printf("   Excludes: %s\n", strings.Join(excludes, ", "))
-		}
-	}
-
-	return nil
-}
-
-// Helper functions
-
-func getConfigPath() (string, error) {
-	if cfgFile != "" {
-		return cfgFile, nil
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("get home directory: %w", err)
-	}
-
-	configDir := filepath.Join(home, ".m_backuper")
-	configPath := filepath.Join(configDir, "config.yaml")
-
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return "", fmt.Errorf("create config directory: %w", err)
-	}
-
-	return configPath, nil
-}
-
-func writeConfigFile(path string, data map[string]interface{}) error {
-	yamlData, err := yaml.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
-	}
-
-	if err := os.WriteFile(path, yamlData, 0644); err != nil {
-		return fmt.Errorf("write config: %w", err)
 	}
 
 	return nil

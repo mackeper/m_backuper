@@ -9,7 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/mackeper/m_backuper/internal/duplicate"
-	"github.com/mackeper/m_backuper/internal/hash"
+	"github.com/mackeper/m_backuper/internal/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -70,16 +70,17 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid keep strategy: %s (use oldest, newest, first, or shortest)", cleanKeep)
 	}
 
-	// Create detector
-	hasher := hash.NewCalculator(cfg.Concurrency.HashWorkers)
-	detector := duplicate.NewDetector(db, hasher, cfg.Duplicates.MinFileSize, log)
+	// Create duplicate operation
+	dupOp := operations.NewDuplicateOperation(db, cfg, log)
 
 	ctx := context.Background()
 
 	// Find duplicates
-	groups, err := detector.FindDuplicates(ctx)
+	groups, err := dupOp.FindDuplicates(ctx, operations.FindOptions{
+		SortBy: "wasted", // Default sort by wasted space
+	})
 	if err != nil {
-		return fmt.Errorf("find duplicates: %w", err)
+		return err
 	}
 
 	if len(groups) == 0 {

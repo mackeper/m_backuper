@@ -6,9 +6,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/mackeper/m_backuper/internal/backup"
-	"github.com/mackeper/m_backuper/internal/hash"
-	"github.com/mackeper/m_backuper/internal/index"
+	"github.com/mackeper/m_backuper/internal/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -61,113 +59,48 @@ func runScan(cmd *cobra.Command, args []string) error {
 		"update_index", scanUpdateIndex,
 	)
 
-	startTime := time.Now()
-
-	// Create walker
-	walker := backup.NewWalker(nil) // No exclusions for scan
-
-	// Create hasher
-	hasher := hash.NewCalculator(cfg.Concurrency.HashWorkers)
+	// Create scan operation
+	scanOp := operations.NewScanOperation(db, log)
 
 	ctx := context.Background()
 
-	// Walk paths
-	files, walkErrs := walker.WalkMultiple(ctx, paths)
-
-	// Create hash jobs channel
-	hashJobs := make(chan hash.HashJob)
-
-	// Start hash workers
-	hashResults := hasher.HashFiles(ctx, hashJobs)
-
-	// Counters
-	var filesScanned int64
-	var bytesScanned int64
-	var filesIndexed int64
-	var errors int64
-
-	// Process files
-	go func() {
-		defer close(hashJobs)
-
-		for file := range files {
-			// Skip files below minimum size
-			if file.Size < scanMinSize {
-				continue
-			}
-
-			log.Debug("scanning file", "path", file.Path, "size", file.Size)
-
-			// Send to hasher
-			select {
-			case hashJobs <- hash.HashJob{Path: file.Path, Size: file.Size}:
-				filesScanned++
-				bytesScanned += file.Size
-			case <-ctx.Done():
-				return
-			}
+	// Track progress for display
+	var lastFilesScanned int64
+	progressCallback := func(progress operations.OperationProgress) {
+		// Print progress every 100 files
+		if progress.FilesComplete-lastFilesScanned >= 100 || progress.Stage == "complete" {
+			fmt.Printf("\rScanned: %d files (%s)", progress.FilesComplete, humanize.Bytes(uint64(progress.BytesComplete)))
+			lastFilesScanned = progress.FilesComplete
 		}
-	}()
+	}
 
-	// Collect hash results
-	go func() {
-		for result := range hashResults {
-			if result.Err != nil {
-				log.Error("hash failed", "path", result.Path, "error", result.Err)
-				errors++
-				continue
-			}
-
-			log.Debug("hashed file", "path", result.Path, "hash", result.Hash[:16])
-
-			if scanUpdateIndex {
-				// Update index
-				fileRecord := &index.FileRecord{
-					Path: result.Path,
-					Hash: result.Hash,
-					Size: result.Size,
-					ModTime: time.Now(), // Use current time as approximation
-				}
-
-				if err := db.UpsertFile(fileRecord); err != nil {
-					log.Error("update index failed", "path", result.Path, "error", err)
-					errors++
-					continue
-				}
-
-				filesIndexed++
-			}
-
-			// Print progress every 100 files
-			if filesScanned%100 == 0 {
-				fmt.Printf("\rScanned: %d files (%s)", filesScanned, humanize.Bytes(uint64(bytesScanned)))
-			}
-		}
-	}()
-
-	// Collect walk errors
-	for err := range walkErrs {
-		log.Warn("walk error", "error", err)
-		errors++
+	// Run scan operation
+	result, err := scanOp.Run(ctx, operations.ScanOptions{
+		Paths:       paths,
+		MinSize:     scanMinSize,
+		UpdateIndex: scanUpdateIndex,
+		HashWorkers: cfg.Concurrency.HashWorkers,
+		Progress:    progressCallback,
+	})
+	if err != nil {
+		return fmt.Errorf("scan failed: %w", err)
 	}
 
 	fmt.Println() // New line after progress
 
-	duration := time.Since(startTime)
-
 	// Print summary
 	fmt.Println("\nScan Summary")
 	fmt.Println("============")
-	fmt.Printf("Files scanned: %d\n", filesScanned)
-	fmt.Printf("Bytes scanned: %s\n", humanize.Bytes(uint64(bytesScanned)))
+	fmt.Printf("Files scanned: %d\n", result.FilesScanned)
+	fmt.Printf("Bytes scanned: %s\n", humanize.Bytes(uint64(result.BytesScanned)))
 	if scanUpdateIndex {
-		fmt.Printf("Files indexed: %d\n", filesIndexed)
+		fmt.Printf("Files indexed: %d\n", result.FilesIndexed)
 	}
-	fmt.Printf("Errors: %d\n", errors)
-	fmt.Printf("Duration: %s\n", duration.Round(time.Second))
+	fmt.Printf("Errors: %d\n", result.Errors)
+	fmt.Printf("Duration: %s\n", result.Duration.Round(time.Second))
 
-	if filesScanned > 0 {
-		rate := float64(bytesScanned) / duration.Seconds()
+	if result.FilesScanned > 0 {
+		rate := float64(result.BytesScanned) / result.Duration.Seconds()
 		fmt.Printf("Scan rate: %s/s\n", humanize.Bytes(uint64(rate)))
 	}
 

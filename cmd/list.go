@@ -2,14 +2,10 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
-	"github.com/dustin/go-humanize"
-	"github.com/mackeper/m_backuper/internal/duplicate"
-	"github.com/mackeper/m_backuper/internal/hash"
-	"github.com/mackeper/m_backuper/internal/index"
+	"github.com/mackeper/m_backuper/internal/display"
+	"github.com/mackeper/m_backuper/internal/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -59,99 +55,31 @@ func init() {
 func runList(cmd *cobra.Command, args []string) error {
 	log.Info("listing duplicates", "sort", listSort, "format", listFormat)
 
-	// Create detector
-	hasher := hash.NewCalculator(cfg.Concurrency.HashWorkers)
-	detector := duplicate.NewDetector(db, hasher, cfg.Duplicates.MinFileSize, log)
+	// Create duplicate operation
+	dupOp := operations.NewDuplicateOperation(db, cfg, log)
 
 	ctx := context.Background()
 
-	// Find duplicates
-	groups, err := detector.FindDuplicates(ctx)
+	// Find duplicates with options
+	groups, err := dupOp.FindDuplicates(ctx, operations.FindOptions{
+		SortBy:    listSort,
+		MinWasted: listMinWasted,
+	})
 	if err != nil {
-		return fmt.Errorf("find duplicates: %w", err)
+		return err
 	}
 
-	// Filter by minimum wasted space
-	if listMinWasted > 0 {
-		groups = duplicate.FilterByMinWasted(groups, listMinWasted)
+	// Format output
+	formatter, err := display.NewFormatter(listFormat)
+	if err != nil {
+		return err
 	}
 
-	// Sort
-	switch listSort {
-	case "size":
-		duplicate.SortBySize(groups)
-	case "count":
-		duplicate.SortByCount(groups)
-	case "wasted":
-		duplicate.SortByWastedSpace(groups)
-	default:
-		return fmt.Errorf("invalid sort option: %s (use size, count, or wasted)", listSort)
+	output, err := formatter.FormatDuplicateGroups(groups)
+	if err != nil {
+		return fmt.Errorf("format output: %w", err)
 	}
 
-	// Output
-	switch listFormat {
-	case "table":
-		printDuplicatesTable(groups)
-	case "json":
-		printDuplicatesJSON(groups)
-	default:
-		return fmt.Errorf("invalid format option: %s (use table or json)", listFormat)
-	}
-
+	fmt.Println(output)
 	return nil
-}
-
-func printDuplicatesTable(groups []index.DuplicateGroup) {
-	if len(groups) == 0 {
-		fmt.Println("No duplicates found")
-		return
-	}
-
-	fmt.Println("\nDuplicate Groups")
-	fmt.Println("================")
-
-	var totalWasted int64
-	for i, group := range groups {
-		fmt.Printf("\n%d. Hash: %s\n", i+1, group.Hash[:16]+"...")
-		fmt.Printf("   Files: %d | Size: %s | Wasted: %s\n",
-			group.FileCount,
-			humanize.Bytes(uint64(group.FileSize)),
-			humanize.Bytes(uint64(group.WastedSpace)))
-
-		for j, file := range group.Files {
-			fmt.Printf("   [%d] %s\n", j+1, file.Path)
-		}
-
-		totalWasted += group.WastedSpace
-	}
-
-	fmt.Printf("\nSummary\n")
-	fmt.Printf("=======\n")
-	fmt.Printf("Duplicate groups: %d\n", len(groups))
-	fmt.Printf("Total wasted space: %s\n", humanize.Bytes(uint64(totalWasted)))
-}
-
-func printDuplicatesJSON(groups []index.DuplicateGroup) {
-	type jsonOutput struct {
-		Groups []index.DuplicateGroup `json:"groups"`
-		Summary struct {
-			GroupCount   int    `json:"group_count"`
-			TotalWasted  int64  `json:"total_wasted"`
-		} `json:"summary"`
-	}
-
-	output := jsonOutput{
-		Groups: groups,
-	}
-
-	output.Summary.GroupCount = len(groups)
-	for _, group := range groups {
-		output.Summary.TotalWasted += group.WastedSpace
-	}
-
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(output); err != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
-	}
 }
