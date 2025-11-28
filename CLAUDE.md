@@ -16,11 +16,14 @@ go build -o m_backuper
 go test ./...                    # All tests
 go test ./internal/hash/ -v      # Specific package with verbose output
 
-# Run the tool
+# Run the CLI
 ./m_backuper --help
 ./m_backuper backup photos --dry-run
 ./m_backuper list --format json
 ./m_backuper config list
+
+# Run the TUI (interactive mode)
+./m_backuper tui
 ```
 
 ## Architecture
@@ -30,6 +33,7 @@ go test ./internal/hash/ -v      # Specific package with verbose output
 ```
 cmd/                    → CLI commands (Cobra)
   ├── root.go          → Shared state (cfg, db, log), PersistentPreRunE
+  ├── tui.go           → TUI launcher (uses internal/tui)
   ├── backup.go        → Backup command (uses operations.BackupOperation)
   ├── scan.go          → Scan command (uses operations.ScanOperation)
   ├── list.go          → List duplicates (uses operations.DuplicateOperation + display.Formatter)
@@ -38,6 +42,17 @@ cmd/                    → CLI commands (Cobra)
   └── config.go        → Config management (uses configutil.Manager)
 
 internal/
+  ├── tui/             → Terminal User Interface (NEW - Bubbletea)
+  │   ├── model.go            → Main TUI model and navigation
+  │   ├── styles.go           → Lipgloss styles and theming
+  │   └── screens/            → Individual TUI screens
+  │       ├── messages.go     → Common message types (NavigateMsg, ErrorMsg, SuccessMsg)
+  │       ├── menu.go         → Main menu screen
+  │       ├── config.go       → Config manager screen (add/edit/delete backup sets)
+  │       ├── stats.go        → Stats viewer screen
+  │       ├── duplicates.go   → Duplicate browser and cleaner screen
+  │       └── backup.go       → Backup runner with progress tracking
+  │
   ├── operations/      → High-level operations (NEW - for CLI and TUI)
   │   ├── models.go           → OperationProgress, OperationResult, ProgressCallback
   │   ├── duplicate_ops.go    → DuplicateOperation: FindDuplicates, CleanDuplicates
@@ -417,14 +432,59 @@ Key external packages:
 - `github.com/mattn/go-sqlite3` - SQLite (requires GCC)
 - `github.com/dustin/go-humanize` - Human-readable formats
 - `gopkg.in/yaml.v3` - YAML parsing (for config CLI commands)
+- `github.com/charmbracelet/bubbletea` - TUI framework (Elm architecture)
+- `github.com/charmbracelet/bubbles` - TUI components (list, textinput, progress)
+- `github.com/charmbracelet/lipgloss` - TUI styling and layout
 
 Standard library: `crypto/sha256`, `log/slog`, `database/sql`, `path/filepath`, `context`
 
-## Future: TUI Integration
+## TUI (Terminal User Interface)
 
-The refactored architecture is ready for TUI integration:
-- **operations/** provides business logic with progress callbacks
-- **display/** provides formatters for consistent presentation
-- TUI can use the same operations as CLI
-- Progress callbacks enable real-time updates in TUI
-- Clean separation allows CLI and TUI to coexist
+The TUI provides an interactive interface built with [Bubbletea](https://github.com/charmbracelet/bubbletea) following the Elm architecture (Model, Update, View).
+
+**Features**:
+- **Config Manager**: Add, edit, and delete backup sets interactively
+- **Stats Viewer**: Real-time database statistics with refresh capability
+- **Duplicate Browser**: Browse duplicate groups, select deletion strategy, and clean files
+- **Backup Runner**: Run backups with real-time progress tracking
+
+**Architecture**:
+```
+internal/tui/
+  ├── model.go        → Main TUI state, navigation, screen routing
+  ├── styles.go       → Lipgloss styles and color palette
+  └── screens/        → Individual screens implementing tea.Model
+      ├── menu.go     → Main navigation menu
+      ├── config.go   → Backup set management (uses configutil.Manager)
+      ├── stats.go    → Statistics display (uses stats.Calculator)
+      ├── duplicates.go → Duplicate browsing (uses operations.DuplicateOperation)
+      └── backup.go   → Backup execution (uses operations.BackupOperation)
+```
+
+**Navigation**:
+- Arrow keys or j/k to navigate menus and lists
+- Enter to select/confirm
+- Esc or q to go back
+- Ctrl+C to quit from main menu
+
+**Key Design Patterns**:
+1. **Elm Architecture**: Each screen is a tea.Model with Init(), Update(), View()
+2. **Message Passing**: NavigateMsg, ErrorMsg, SuccessMsg for screen communication
+3. **Shared Operations**: TUI and CLI use the same operations layer
+4. **Progress Callbacks**: Real-time updates for long-running operations
+5. **Lazy Initialization**: Screens created on first navigation (memory efficient)
+
+**Usage**:
+```bash
+# Launch TUI
+./m_backuper tui
+
+# TUI uses the same config file as CLI
+./m_backuper --config custom.yaml tui
+```
+
+**Implementation Notes**:
+- TUI requires valid config and database (initialized via PersistentPreRunE)
+- Config screen needs configPath parameter to reload config after edits
+- Progress tracking uses operations.ProgressCallback for real-time updates
+- All TUI screens access shared state (cfg, db, logger) from main model
