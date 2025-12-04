@@ -12,6 +12,10 @@ run: build
 	@echo "Running the project..."
 	./$(PROGRAM)
 
+test:
+	@echo "Running tests..."
+	go test ./...
+
 clean:
 	@echo "Cleaning up..."
 	rm -f $(PROGRAM)

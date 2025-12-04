@@ -33,4 +33,4 @@ go.work.sum
 # .vscode/
 
 # test data
-testdata/dst/
+dst/
