@@ -9,14 +9,15 @@ import (
 	"time"
 )
 
+//nolint:govet // fieldalignment: field order optimized for JSON readability
 type FileState struct {
-	Size      int64  `json:"size"`
-	BackedUp  string `json:"backed_up"` // ISO 8601 timestamp
+	Size     int64  `json:"size"`
+	BackedUp string `json:"backed_up"` // ISO 8601 timestamp
 }
 
 type State struct {
-	LastRun time.Time              `json:"last_run"`
-	Files   map[string]FileState   `json:"files"`
+	LastRun time.Time            `json:"last_run"`
+	Files   map[string]FileState `json:"files"`
 }
 
 func New() *State {
@@ -45,7 +46,7 @@ func LoadFrom(statePath string) (*State, error) {
 	state := New()
 
 	// Try to load from file
-	data, err := os.ReadFile(statePath)
+	data, err := os.ReadFile(statePath) //nolint:gosec // State path is from trusted source
 	if err != nil {
 		if os.IsNotExist(err) {
 			slog.Info("state file not found, starting fresh", "path", statePath)
@@ -75,7 +76,7 @@ func (s *State) Save() error {
 func (s *State) SaveTo(statePath string) error {
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(statePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		slog.Error("failed to create state directory", "path", dir, "error", err)
 		return fmt.Errorf("failed to create state directory: %w", err)
 	}
@@ -90,7 +91,7 @@ func (s *State) SaveTo(statePath string) error {
 	}
 
 	// Write to file
-	if err := os.WriteFile(statePath, data, 0644); err != nil {
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
 		slog.Error("failed to write state file", "path", statePath, "error", err)
 		return fmt.Errorf("failed to write state file: %w", err)
 	}

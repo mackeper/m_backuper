@@ -23,26 +23,34 @@ func (c *LocalCopier) Copy(src, dst string) (int64, error) {
 
 	// Create destination directory if it doesn't exist
 	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o750); err != nil {
 		slog.Error("failed to create destination directory", "dir", dstDir, "error", err)
 		return 0, fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	// Open source file
-	srcFile, err := os.Open(src)
+	srcFile, err := os.Open(src) //nolint:gosec // src path is from filesystem scan
 	if err != nil {
 		slog.Error("failed to open source file", "src", src, "error", err)
 		return 0, fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer srcFile.Close()
+	defer func() {
+		if err := srcFile.Close(); err != nil {
+			slog.Warn("failed to close source file", "src", src, "error", err)
+		}
+	}()
 
 	// Create destination file
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.Create(dst) //nolint:gosec // dst path is constructed from config
 	if err != nil {
 		slog.Error("failed to create destination file", "dst", dst, "error", err)
 		return 0, fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dstFile.Close()
+	defer func() {
+		if err := dstFile.Close(); err != nil {
+			slog.Warn("failed to close destination file", "dst", dst, "error", err)
+		}
+	}()
 
 	// Copy file contents
 	bytesCopied, err := io.Copy(dstFile, srcFile)

@@ -30,26 +30,24 @@ func (s *Scanner) Scan(paths []string) ([]FileInfo, error) {
 	seen := make(map[string]bool) // Track visited paths to handle symlinks
 
 	for _, path := range paths {
-		if err := s.scanPath(path, &files, seen); err != nil {
-			return files, err
-		}
+		s.scanPath(path, &files, seen)
 	}
 
 	return files, nil
 }
 
-func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool) error {
+func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool) {
 	// Get absolute path to handle symlinks correctly
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		slog.Warn("failed to get absolute path", "path", path, "error", err)
-		return nil // Continue scanning other paths
+		return // Continue scanning other paths
 	}
 
 	// Check if we've already visited this path (symlink loop detection)
 	if seen[absPath] {
 		slog.Debug("skipping already visited path", "path", absPath)
-		return nil
+		return
 	}
 	seen[absPath] = true
 
@@ -58,10 +56,10 @@ func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool)
 	if err != nil {
 		if os.IsPermission(err) {
 			slog.Warn("permission denied", "path", path, "error", err)
-			return nil // Continue scanning other paths
+			return // Continue scanning other paths
 		}
 		slog.Error("failed to stat file", "path", path, "error", err)
-		return nil // Continue scanning other paths
+		return // Continue scanning other paths
 	}
 
 	// Handle symlinks
@@ -70,25 +68,33 @@ func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool)
 		realPath, err := filepath.EvalSymlinks(path)
 		if err != nil {
 			slog.Warn("failed to resolve symlink", "path", path, "error", err)
-			return nil // Skip broken symlinks
+			return // Skip broken symlinks
 		}
 
 		// Get info about the target
 		info, err = os.Stat(realPath)
 		if err != nil {
 			slog.Warn("failed to stat symlink target", "path", realPath, "error", err)
-			return nil
+			return
 		}
 
 		// Use the real path for further processing
 		path = realPath
-		absPath = realPath
+		// Update absPath for symlink loop detection
+		if newAbsPath, err := filepath.Abs(realPath); err == nil {
+			absPath = newAbsPath
+			if seen[absPath] {
+				slog.Debug("skipping already visited symlink target", "path", absPath)
+				return
+			}
+			seen[absPath] = true
+		}
 	}
 
 	// Check if path should be ignored
 	if s.shouldIgnore(path) {
 		slog.Debug("ignoring path", "path", path)
-		return nil
+		return
 	}
 
 	// If it's a directory, walk it
@@ -97,18 +103,15 @@ func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool)
 		if err != nil {
 			if os.IsPermission(err) {
 				slog.Warn("permission denied reading directory", "path", path, "error", err)
-				return nil
+				return
 			}
 			slog.Error("failed to read directory", "path", path, "error", err)
-			return nil
+			return
 		}
 
 		for _, entry := range entries {
 			entryPath := filepath.Join(path, entry.Name())
-			if err := s.scanPath(entryPath, files, seen); err != nil {
-				// Log but continue with other entries
-				slog.Warn("error scanning path", "path", entryPath, "error", err)
-			}
+			s.scanPath(entryPath, files, seen)
 		}
 	} else {
 		// It's a file, add it to the list
@@ -119,8 +122,6 @@ func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool)
 			IsDir:   false,
 		})
 	}
-
-	return nil
 }
 
 func (s *Scanner) shouldIgnore(path string) bool {
@@ -133,6 +134,8 @@ func (s *Scanner) shouldIgnore(path string) bool {
 }
 
 // Supports patterns like *.tmp, .cache/*, **/node_modules/**
+//
+//nolint:gocyclo // Pattern matching requires multiple checks
 func (s *Scanner) matchPattern(path, pattern string) bool {
 	// Normalize path separators
 	path = filepath.ToSlash(path)

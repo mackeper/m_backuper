@@ -47,10 +47,10 @@ func TestIgnorePatterns(t *testing.T) {
 
 	// Create test files
 	testFiles := map[string]bool{
-		"file1.txt":      false, // should be included
-		"file2.tmp":      true,  // should be ignored (*.tmp)
-		"file3.log":      false, // should be included
-		".cache/data":    true,  // should be ignored (.cache/*)
+		"file1.txt":       false, // should be included
+		"file2.tmp":       true,  // should be ignored (*.tmp)
+		"file3.log":       false, // should be included
+		".cache/data":     true,  // should be ignored (.cache/*)
 		"subdir/file.txt": false, // should be included
 		"subdir/file.tmp": true,  // should be ignored (*.tmp)
 	}
@@ -142,10 +142,12 @@ func TestPermissionErrorHandling(t *testing.T) {
 	restrictedDir := filepath.Join(tmpDir, "restricted")
 
 	// Create a directory with no read permissions
-	if err := os.Mkdir(restrictedDir, 0000); err != nil {
+	if err := os.Mkdir(restrictedDir, 0o000); err != nil {
 		t.Fatalf("failed to create restricted directory: %v", err)
 	}
-	defer os.Chmod(restrictedDir, 0755) // Restore permissions for cleanup
+	defer func() {
+		_ = os.Chmod(restrictedDir, 0o755) // Restore permissions for cleanup
+	}()
 
 	// Scan should not fail, just log and continue
 	scanner := New([]string{})

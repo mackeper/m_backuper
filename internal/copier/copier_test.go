@@ -1,6 +1,7 @@
 package copier
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,7 +49,7 @@ func TestLocalCopierCopyFile(t *testing.T) {
 		t.Fatalf("failed to read destination file: %v", err)
 	}
 
-	if string(dstContent) != string(testContent) {
+	if !bytes.Equal(dstContent, testContent) {
 		t.Errorf("content mismatch: expected %q, got %q", testContent, dstContent)
 	}
 }

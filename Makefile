@@ -1,4 +1,4 @@
-.PHONY: build build-all build-android build-windows build-linux build-darwin test run install-termux clean
+.PHONY: build build-all build-android build-windows build-linux build-darwin test fmt fmt-check lint run install-termux clean
 
 # Default build (current platform)
 build:
@@ -43,6 +43,23 @@ test:
 	@echo "==== Running tests..."
 	go test -v ./...
 	@echo "==== Tests complete"
+
+# Code Quality
+fmt:
+	@echo "==== Formatting code..."
+	go fmt ./...
+	@echo "==== Format complete"
+
+fmt-check:
+	@echo "==== Checking code formatting..."
+	@test -z "$$(gofmt -l .)" || (echo "Code is not formatted. Run 'make fmt'" && gofmt -l . && exit 1)
+	@echo "==== Format check passed"
+
+lint:
+	@echo "==== Running linters..."
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Install from https://golangci-lint.run/usage/install/" && exit 1)
+	golangci-lint run ./...
+	@echo "==== Linting complete"
 
 # Run
 run:

@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 )
 
+//nolint:govet // fieldalignment: field order optimized for JSON readability
 type Config struct {
-	BackupRoot             string   `json:"backup_root"`
-	DeviceID               string   `json:"device_id"`
-	PathsToBackup          []string `json:"paths_to_backup"`
-	FilesToIgnorePatterns  []string `json:"files_to_ignore_patterns"`
-	SMBUser                string   `json:"smb_user,omitempty"`
-	SMBPassword            string   `json:"smb_password,omitempty"`
+	BackupRoot            string   `json:"backup_root"`
+	DeviceID              string   `json:"device_id"`
+	PathsToBackup         []string `json:"paths_to_backup"`
+	FilesToIgnorePatterns []string `json:"files_to_ignore_patterns"`
+	SMBUser               string   `json:"smb_user,omitempty"`
+	SMBPassword           string   `json:"smb_password,omitempty"`
 }
 
 func Default() Config {
@@ -51,7 +52,7 @@ func LoadFrom(configPath string) (Config, error) {
 	cfg := Default()
 
 	// Try to load from file
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) //nolint:gosec // Config path is from trusted source
 	if err != nil {
 		if os.IsNotExist(err) {
 			slog.Info("config file not found, using defaults", "path", configPath)
@@ -84,7 +85,7 @@ func LoadFrom(configPath string) (Config, error) {
 	return cfg, nil
 }
 
-func Save(cfg Config) error {
+func Save(cfg *Config) error {
 	configPath, err := ConfigPath()
 	if err != nil {
 		return err
@@ -92,7 +93,7 @@ func Save(cfg Config) error {
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -103,7 +104,7 @@ func Save(cfg Config) error {
 	}
 
 	// Write to file
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

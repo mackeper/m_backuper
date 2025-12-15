@@ -7,6 +7,8 @@ import (
 )
 
 // mockFileInfo implements fs.FileInfo for testing
+//
+//nolint:govet // fieldalignment: test struct, performance not critical
 type mockFileInfo struct {
 	name    string
 	size    int64
@@ -87,8 +89,7 @@ func TestInterfaceCanBeSwapped(t *testing.T) {
 	var _ ChangeDetector = (*SizeDetector)(nil)
 
 	// Create instances through interface
-	var detector ChangeDetector
-	detector = NewSizeDetector()
+	detector := ChangeDetector(NewSizeDetector())
 
 	info := mockFileInfo{
 		name:    "test.txt",

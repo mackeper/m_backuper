@@ -75,7 +75,10 @@ func loadConfig() (config.Config, error) {
 func backupCmd(args []string) {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	dryRun := fs.Bool("dry-run", false, "Show files that would be backed up without copying")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
 
 	// Load configuration
 	cfg, err := loadConfig()
@@ -108,20 +111,24 @@ func backupCmd(args []string) {
 		s := scanner.New(cfg.FilesToIgnorePatterns)
 		d := detector.NewSizeDetector()
 		c := copier.NewLocalCopier(cfg.BackupRoot)
-		defer c.Close()
+		defer func() {
+			if err := c.Close(); err != nil {
+				slog.Warn("failed to close copier", "error", err)
+			}
+		}()
 
 		// Load state
 		st, err := state.Load()
 		if err != nil {
 			slog.Error("failed to load state", "error", err)
-			os.Exit(1)
+			return
 		}
 
 		// Create and run backup
 		b := backup.New(s, d, c, st, cfg.DeviceID)
 		if err := b.Run(cfg.PathsToBackup, cfg.BackupRoot); err != nil {
 			slog.Error("backup failed", "error", err)
-			os.Exit(1)
+			return
 		}
 
 		fmt.Println("\nBackup completed successfully!")
@@ -131,7 +138,10 @@ func backupCmd(args []string) {
 
 func statusCmd(args []string) {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
 
 	// Load state
 	st, err := state.Load()
@@ -163,7 +173,10 @@ func statusCmd(args []string) {
 
 func configCmd(args []string) {
 	fs := flag.NewFlagSet("config", flag.ExitOnError)
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -176,10 +189,13 @@ func configCmd(args []string) {
 
 func initCmd(args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
 
 	cfg := config.Default()
-	if err := config.Save(cfg); err != nil {
+	if err := config.Save(&cfg); err != nil {
 		slog.Error("failed to save config", "error", err)
 		os.Exit(1)
 	}

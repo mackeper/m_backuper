@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -123,7 +124,7 @@ func TestIncrementalBackupOnlyCopiesChangedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read backed up file1: %v", err)
 	}
-	if string(content) != string(newContent1) {
+	if !bytes.Equal(content, newContent1) {
 		t.Error("file1 was not updated in backup")
 	}
 }

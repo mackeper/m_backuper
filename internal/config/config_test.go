@@ -71,13 +71,19 @@ func TestLoadFromValidFile(t *testing.T) {
 
 func TestEnvironmentVariableOverride(t *testing.T) {
 	// Set environment variables
-	os.Setenv("M_BACKUPER_SMB_USER", "envuser")
-	os.Setenv("M_BACKUPER_SMB_PASS", "envpass")
-	os.Setenv("M_BACKUPER_BACKUP_ROOT", "//env-server/backups")
+	if err := os.Setenv("M_BACKUPER_SMB_USER", "envuser"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Setenv("M_BACKUPER_SMB_PASS", "envpass"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Setenv("M_BACKUPER_BACKUP_ROOT", "//env-server/backups"); err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		os.Unsetenv("M_BACKUPER_SMB_USER")
-		os.Unsetenv("M_BACKUPER_SMB_PASS")
-		os.Unsetenv("M_BACKUPER_BACKUP_ROOT")
+		_ = os.Unsetenv("M_BACKUPER_SMB_USER")
+		_ = os.Unsetenv("M_BACKUPER_SMB_PASS")
+		_ = os.Unsetenv("M_BACKUPER_BACKUP_ROOT")
 	}()
 
 	cfg := Default()
@@ -154,7 +160,7 @@ func TestSave(t *testing.T) {
 	}
 
 	// Save config
-	if err := Save(testConfig); err != nil {
+	if err := Save(&testConfig); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
@@ -180,7 +186,7 @@ func TestSave(t *testing.T) {
 	}
 
 	// Clean up
-	os.Remove(configPath)
+	_ = os.Remove(configPath)
 }
 
 func TestConfigString(t *testing.T) {
