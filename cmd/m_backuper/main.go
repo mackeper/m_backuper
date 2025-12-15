@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/mackeper/m_backuper/internal/backup"
 	"github.com/mackeper/m_backuper/internal/config"
+	"github.com/mackeper/m_backuper/internal/copier"
+	"github.com/mackeper/m_backuper/internal/detector"
 	"github.com/mackeper/m_backuper/internal/scanner"
 	"github.com/mackeper/m_backuper/internal/state"
 )
@@ -98,7 +101,31 @@ func backupCmd(args []string) {
 		}
 		fmt.Printf("\nFound %d files that would be backed up\n", len(files))
 	} else {
-		slog.Info("backup: not implemented")
+		// Run actual backup
+		slog.Info("starting backup")
+
+		// Create components
+		s := scanner.New(cfg.FilesToIgnorePatterns)
+		d := detector.NewSizeDetector()
+		c := copier.NewLocalCopier(cfg.BackupRoot)
+		defer c.Close()
+
+		// Load state
+		st, err := state.Load()
+		if err != nil {
+			slog.Error("failed to load state", "error", err)
+			os.Exit(1)
+		}
+
+		// Create and run backup
+		b := backup.New(s, d, c, st, cfg.DeviceID)
+		if err := b.Run(cfg.PathsToBackup, cfg.BackupRoot); err != nil {
+			slog.Error("backup failed", "error", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("\nBackup completed successfully!")
+		fmt.Printf("Run 'm_backuper status' to see backup details.\n")
 	}
 }
 
