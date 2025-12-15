@@ -8,6 +8,7 @@ import (
 
 	"github.com/mackeper/m_backuper/internal/config"
 	"github.com/mackeper/m_backuper/internal/scanner"
+	"github.com/mackeper/m_backuper/internal/state"
 )
 
 var globalConfigPath string
@@ -105,7 +106,32 @@ func statusCmd(args []string) {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
 	fs.Parse(args)
 
-	slog.Info("status: not implemented")
+	// Load state
+	st, err := state.Load()
+	if err != nil {
+		slog.Error("failed to load state", "error", err)
+		os.Exit(1)
+	}
+
+	// Display status
+	fmt.Println("Backup Status:")
+	fmt.Println()
+
+	if st.LastRun.IsZero() {
+		fmt.Println("  Last backup: Never")
+	} else {
+		fmt.Printf("  Last backup: %s\n", st.LastRun.Format("2006-01-02 15:04:05"))
+	}
+
+	fmt.Printf("  Files backed up: %d\n", st.FileCount())
+
+	if st.FileCount() > 0 {
+		var totalSize int64
+		for _, fileState := range st.Files {
+			totalSize += fileState.Size
+		}
+		fmt.Printf("  Total size: %d bytes (%.2f MB)\n", totalSize, float64(totalSize)/(1024*1024))
+	}
 }
 
 func configCmd(args []string) {
