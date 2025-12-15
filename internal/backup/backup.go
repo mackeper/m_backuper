@@ -12,7 +12,6 @@ import (
 	"github.com/mackeper/m_backuper/internal/state"
 )
 
-// Backup orchestrates the backup process
 type Backup struct {
 	scanner  *scanner.Scanner
 	detector detector.ChangeDetector
@@ -21,7 +20,6 @@ type Backup struct {
 	deviceID string
 }
 
-// New creates a new Backup with the given components
 func New(s *scanner.Scanner, d detector.ChangeDetector, c copier.Copier, st *state.State, deviceID string) *Backup {
 	return &Backup{
 		scanner:  s,
@@ -32,7 +30,6 @@ func New(s *scanner.Scanner, d detector.ChangeDetector, c copier.Copier, st *sta
 	}
 }
 
-// Run executes the backup process
 func (b *Backup) Run(paths []string, backupRoot string) error {
 	slog.Info("starting backup", "paths", paths, "device_id", b.deviceID)
 

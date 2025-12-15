@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 )
 
-// Config represents the backup configuration
 type Config struct {
 	BackupRoot             string   `json:"backup_root"`
 	DeviceID               string   `json:"device_id"`
@@ -18,7 +17,6 @@ type Config struct {
 	SMBPassword            string   `json:"smb_password,omitempty"`
 }
 
-// Default returns a Config with default values
 func Default() Config {
 	hostname, _ := os.Hostname()
 	if hostname == "" {
@@ -33,7 +31,6 @@ func Default() Config {
 	}
 }
 
-// ConfigPath returns the default config file path
 func ConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -42,7 +39,6 @@ func ConfigPath() (string, error) {
 	return filepath.Join(homeDir, ".config", "m_backuper", "config.json"), nil
 }
 
-// Load reads configuration from file and applies environment variable overrides
 func Load() (Config, error) {
 	configPath, err := ConfigPath()
 	if err != nil {
@@ -51,7 +47,6 @@ func Load() (Config, error) {
 	return LoadFrom(configPath)
 }
 
-// LoadFrom reads configuration from a specific file path and applies environment variable overrides
 func LoadFrom(configPath string) (Config, error) {
 	cfg := Default()
 
@@ -89,7 +84,6 @@ func LoadFrom(configPath string) (Config, error) {
 	return cfg, nil
 }
 
-// Save writes the configuration to the default config file
 func Save(cfg Config) error {
 	configPath, err := ConfigPath()
 	if err != nil {
@@ -117,8 +111,7 @@ func Save(cfg Config) error {
 	return nil
 }
 
-// String returns a formatted string representation of the config
-// Note: Passwords are redacted
+// Passwords are redacted for security
 func (c Config) String() string {
 	password := c.SMBPassword
 	if password != "" {

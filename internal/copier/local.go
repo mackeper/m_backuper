@@ -8,19 +8,16 @@ import (
 	"path/filepath"
 )
 
-// LocalCopier copies files to a local filesystem destination
 type LocalCopier struct {
 	destRoot string
 }
 
-// NewLocalCopier creates a new LocalCopier with the given destination root
 func NewLocalCopier(destRoot string) *LocalCopier {
 	return &LocalCopier{
 		destRoot: destRoot,
 	}
 }
 
-// Copy copies a file from src to the destination, preserving directory structure
 func (c *LocalCopier) Copy(src, dst string) (int64, error) {
 	slog.Debug("copying file", "src", src, "dst", dst)
 

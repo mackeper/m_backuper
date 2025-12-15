@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// FileInfo represents information about a scanned file
 type FileInfo struct {
 	Path    string
 	Size    int64
@@ -16,19 +15,16 @@ type FileInfo struct {
 	IsDir   bool
 }
 
-// Scanner walks filesystem paths and collects file information
 type Scanner struct {
 	ignorePatterns []string
 }
 
-// New creates a new Scanner with the given ignore patterns
 func New(ignorePatterns []string) *Scanner {
 	return &Scanner{
 		ignorePatterns: ignorePatterns,
 	}
 }
 
-// Scan walks the given paths and returns a list of files
 func (s *Scanner) Scan(paths []string) ([]FileInfo, error) {
 	var files []FileInfo
 	seen := make(map[string]bool) // Track visited paths to handle symlinks
@@ -42,7 +38,6 @@ func (s *Scanner) Scan(paths []string) ([]FileInfo, error) {
 	return files, nil
 }
 
-// scanPath recursively scans a single path
 func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool) error {
 	// Get absolute path to handle symlinks correctly
 	absPath, err := filepath.Abs(path)
@@ -128,7 +123,6 @@ func (s *Scanner) scanPath(path string, files *[]FileInfo, seen map[string]bool)
 	return nil
 }
 
-// shouldIgnore checks if a path matches any ignore patterns
 func (s *Scanner) shouldIgnore(path string) bool {
 	for _, pattern := range s.ignorePatterns {
 		if s.matchPattern(path, pattern) {
@@ -138,11 +132,7 @@ func (s *Scanner) shouldIgnore(path string) bool {
 	return false
 }
 
-// matchPattern checks if a path matches a glob pattern
-// Supports patterns like:
-// - *.tmp (matches files ending in .tmp anywhere)
-// - .cache/* (matches anything in .cache directory)
-// - **/node_modules/** (matches node_modules directory anywhere)
+// Supports patterns like *.tmp, .cache/*, **/node_modules/**
 func (s *Scanner) matchPattern(path, pattern string) bool {
 	// Normalize path separators
 	path = filepath.ToSlash(path)
@@ -207,7 +197,6 @@ func (s *Scanner) matchPattern(path, pattern string) bool {
 	return false
 }
 
-// ScanDryRun scans paths and returns files that would be backed up (for dry-run mode)
 func (s *Scanner) ScanDryRun(paths []string) ([]FileInfo, error) {
 	files, err := s.Scan(paths)
 	if err != nil {

@@ -9,26 +9,22 @@ import (
 	"time"
 )
 
-// FileState represents the state of a backed up file
 type FileState struct {
 	Size      int64  `json:"size"`
 	BackedUp  string `json:"backed_up"` // ISO 8601 timestamp
 }
 
-// State represents the complete backup state
 type State struct {
 	LastRun time.Time              `json:"last_run"`
 	Files   map[string]FileState   `json:"files"`
 }
 
-// New creates a new empty State
 func New() *State {
 	return &State{
 		Files: make(map[string]FileState),
 	}
 }
 
-// StatePath returns the default state file path
 func StatePath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -37,7 +33,6 @@ func StatePath() (string, error) {
 	return filepath.Join(homeDir, ".config", "m_backuper", "state.json"), nil
 }
 
-// Load reads the state from the default state file
 func Load() (*State, error) {
 	statePath, err := StatePath()
 	if err != nil {
@@ -46,7 +41,6 @@ func Load() (*State, error) {
 	return LoadFrom(statePath)
 }
 
-// LoadFrom reads the state from a specific file path
 func LoadFrom(statePath string) (*State, error) {
 	state := New()
 
@@ -70,7 +64,6 @@ func LoadFrom(statePath string) (*State, error) {
 	return state, nil
 }
 
-// Save writes the state to the default state file
 func (s *State) Save() error {
 	statePath, err := StatePath()
 	if err != nil {
@@ -79,7 +72,6 @@ func (s *State) Save() error {
 	return s.SaveTo(statePath)
 }
 
-// SaveTo writes the state to a specific file path
 func (s *State) SaveTo(statePath string) error {
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(statePath)
@@ -107,13 +99,11 @@ func (s *State) SaveTo(statePath string) error {
 	return nil
 }
 
-// GetFileState returns the state for a specific file path
 func (s *State) GetFileState(path string) (FileState, bool) {
 	state, exists := s.Files[path]
 	return state, exists
 }
 
-// SetFileState updates the state for a specific file path
 func (s *State) SetFileState(path string, size int64) {
 	s.Files[path] = FileState{
 		Size:     size,
@@ -121,12 +111,10 @@ func (s *State) SetFileState(path string, size int64) {
 	}
 }
 
-// RemoveFileState removes the state for a specific file path
 func (s *State) RemoveFileState(path string) {
 	delete(s.Files, path)
 }
 
-// FileCount returns the number of files in the state
 func (s *State) FileCount() int {
 	return len(s.Files)
 }
