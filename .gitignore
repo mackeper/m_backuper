@@ -35,3 +35,5 @@ go.work.sum
 
 # test data
 dst/
+test-backup/
+test-config.json

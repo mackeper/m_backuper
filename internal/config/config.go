@@ -48,7 +48,11 @@ func Load() (Config, error) {
 	if err != nil {
 		return Default(), err
 	}
+	return LoadFrom(configPath)
+}
 
+// LoadFrom reads configuration from a specific file path and applies environment variable overrides
+func LoadFrom(configPath string) (Config, error) {
 	cfg := Default()
 
 	// Try to load from file
