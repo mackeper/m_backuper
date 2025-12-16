@@ -1,4 +1,4 @@
-.PHONY: build build-all build-android build-windows build-linux build-darwin test fmt fmt-check lint run install-termux clean
+.PHONY: build build-all build-android build-windows build-linux build-darwin test test-unit test-integration test-integration-docker fmt fmt-check lint run install-termux clean clean-test
 
 # Default build (current platform)
 build:
@@ -39,10 +39,32 @@ build-darwin:
 	@echo "==== Build complete: bin/m_backuper_darwin_arm64"
 
 # Testing
-test:
-	@echo "==== Running tests..."
+test: test-unit
+	@echo "==== All tests complete"
+
+test-unit:
+	@echo "==== Running unit tests..."
 	go test -v ./...
-	@echo "==== Tests complete"
+	@echo "==== Unit tests complete"
+
+test-integration:
+	@echo "==== Running integration tests..."
+	@echo "Note: This requires an SMB share mounted at SMB_MOUNT"
+	@if [ -z "$$SMB_MOUNT" ]; then \
+		echo "Error: SMB_MOUNT environment variable not set"; \
+		echo "Example: SMB_MOUNT=/mnt/smb make test-integration"; \
+		exit 1; \
+	fi
+	go test -v -tags=integration ./tests/integration/... -count=1
+	@echo "==== Integration tests complete"
+
+test-integration-docker:
+	@echo "==== Running integration tests in Docker with Samba..."
+	@which docker-compose > /dev/null || which docker > /dev/null || (echo "Docker not found. Please install Docker." && exit 1)
+	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test-runner
+	@echo "==== Cleaning up Docker containers..."
+	docker-compose -f docker-compose.test.yml down -v
+	@echo "==== Docker integration tests complete"
 
 # Code Quality
 fmt:
@@ -78,3 +100,9 @@ clean:
 	@echo "==== Cleaning build artifacts..."
 	rm -rf bin
 	@echo "==== Clean complete"
+
+clean-test:
+	@echo "==== Cleaning test artifacts..."
+	rm -rf test-results
+	docker-compose -f docker-compose.test.yml down -v 2>/dev/null || true
+	@echo "==== Test cleanup complete"

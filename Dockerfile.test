@@ -1,0 +1,75 @@
+FROM golang:1.23-alpine
+
+# Install CIFS utilities and tools needed for SMB mounting
+RUN apk add --no-cache \
+    cifs-utils \
+    samba-client \
+    bash \
+    fuse \
+    && mkdir -p /mnt/smb-test
+
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum* ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Create directory for test results
+RUN mkdir -p /app/test-results
+
+# Script to mount SMB share and run tests
+COPY <<'EOF' /entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "=== Starting SMB Integration Tests ==="
+echo "SMB Host: ${SMB_HOST}"
+echo "SMB Share: ${SMB_SHARE}"
+echo "Mount Point: ${SMB_MOUNT}"
+
+# Wait for Samba to be ready
+echo "Waiting for Samba server..."
+until smbclient -L "${SMB_HOST}" -U "${SMB_USER}%${SMB_PASS}" -N > /dev/null 2>&1; do
+    echo "Waiting for Samba server to be ready..."
+    sleep 2
+done
+echo "Samba server is ready!"
+
+# Create mount point
+mkdir -p "${SMB_MOUNT}"
+
+# Mount the SMB share
+echo "Mounting SMB share..."
+mount -t cifs "//${SMB_HOST}/${SMB_SHARE}" "${SMB_MOUNT}" \
+    -o "user=${SMB_USER},password=${SMB_PASS},vers=3.0,uid=$(id -u),gid=$(id -g)"
+
+# Verify mount
+if mountpoint -q "${SMB_MOUNT}"; then
+    echo "✓ SMB share mounted successfully at ${SMB_MOUNT}"
+    ls -la "${SMB_MOUNT}"
+else
+    echo "✗ Failed to mount SMB share"
+    exit 1
+fi
+
+# Run integration tests
+echo ""
+echo "=== Running Integration Tests ==="
+go test -v -tags=integration ./tests/integration/... -count=1 | tee /app/test-results/integration-tests.log
+
+TEST_EXIT_CODE=${PIPESTATUS[0]}
+
+# Unmount before exit
+echo ""
+echo "=== Cleaning Up ==="
+umount "${SMB_MOUNT}" || true
+
+exit ${TEST_EXIT_CODE}
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

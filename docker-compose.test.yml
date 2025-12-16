@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Samba server for testing SMB/CIFS network backups
+  samba:
+    image: dperson/samba:latest
+    environment:
+      # Create a test user and share
+      - USER=testuser;testpass
+      - SHARE=backup;/backup;yes;no;no;testuser;testuser
+      - PERMISSIONS=yes
+    tmpfs:
+      - /backup
+    ports:
+      - "445:445"
+    healthcheck:
+      test: ["CMD", "smbclient", "-L", "localhost", "-U", "testuser%testpass", "-N"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - test-network
+
+  # Test runner with Go and CIFS utilities
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      samba:
+        condition: service_healthy
+    environment:
+      - SMB_HOST=samba
+      - SMB_SHARE=backup
+      - SMB_USER=testuser
+      - SMB_PASS=testpass
+      - SMB_MOUNT=/mnt/smb-test
+    volumes:
+      - ./:/app:ro
+      - test-results:/app/test-results
+    networks:
+      - test-network
+    cap_add:
+      - SYS_ADMIN  # Required for mounting
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    working_dir: /app
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-results:

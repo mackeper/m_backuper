@@ -1,0 +1,123 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  integration-tests-docker:
+    name: Integration Tests (Docker + SMB)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run integration tests with Docker Compose
+      run: make test-integration-docker
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results
+        path: test-results/
+        retention-days: 7
+
+    - name: Clean up
+      if: always()
+      run: make clean-test
+
+  integration-tests-matrix:
+    name: Integration Tests (Multi-Platform)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            mount-path: /mnt/smb-test
+          - os: macos-latest
+            mount-path: /Volumes/smb-test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Start Samba server
+      run: |
+        docker run -d --name samba \
+          -p 445:445 \
+          -e USER="testuser;testpass" \
+          -e SHARE="backup;/backup;yes;no;no;testuser;testuser" \
+          -e PERMISSIONS=yes \
+          dperson/samba:latest
+
+        # Wait for Samba to be ready
+        for i in {1..30}; do
+          if docker exec samba smbclient -L localhost -U "testuser%testpass" -N > /dev/null 2>&1; then
+            echo "Samba is ready!"
+            break
+          fi
+          echo "Waiting for Samba... ($i/30)"
+          sleep 2
+        done
+
+    - name: Install CIFS utilities (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cifs-utils
+
+    - name: Install CIFS utilities (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # macOS has built-in SMB support
+        echo "macOS has built-in SMB support"
+
+    - name: Mount SMB share (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo mkdir -p ${{ matrix.mount-path }}
+        sudo mount -t cifs //127.0.0.1/backup ${{ matrix.mount-path }} \
+          -o user=testuser,password=testpass,vers=3.0,uid=$(id -u),gid=$(id -g),noperm
+        ls -la ${{ matrix.mount-path }}
+
+    - name: Mount SMB share (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        sudo mkdir -p ${{ matrix.mount-path }}
+        # macOS mount syntax
+        sudo mount_smbfs //testuser:testpass@127.0.0.1/backup ${{ matrix.mount-path }}
+        ls -la ${{ matrix.mount-path }}
+
+    - name: Run integration tests
+      env:
+        SMB_MOUNT: ${{ matrix.mount-path }}
+      run: make test-integration
+
+    - name: Unmount SMB share
+      if: always()
+      run: |
+        sudo umount ${{ matrix.mount-path }} || true
+
+    - name: Stop Samba server
+      if: always()
+      run: |
+        docker stop samba || true
+        docker rm samba || true
