@@ -38,7 +38,6 @@ services:
       - SMB_MOUNT=/mnt/smb-test
     volumes:
       - ./:/app:ro
-      - test-results:/app/test-results
     networks:
       - test-network
     cap_add:
@@ -52,6 +51,3 @@ services:
 networks:
   test-network:
     driver: bridge
-
-volumes:
-  test-results:
