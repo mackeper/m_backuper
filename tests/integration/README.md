@@ -146,6 +146,11 @@ If this fails, verify:
 ### Docker Compose hangs
 Check if containers are healthy:
 ```bash
+# Docker Compose v2 (recommended)
+docker compose -f docker-compose.test.yml ps
+docker compose -f docker-compose.test.yml logs samba
+
+# Or Docker Compose v1
 docker-compose -f docker-compose.test.yml ps
 docker-compose -f docker-compose.test.yml logs samba
 ```

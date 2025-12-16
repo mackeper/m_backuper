@@ -60,10 +60,20 @@ test-integration:
 
 test-integration-docker:
 	@echo "==== Running integration tests in Docker with Samba..."
-	@which docker-compose > /dev/null || which docker > /dev/null || (echo "Docker not found. Please install Docker." && exit 1)
-	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test-runner
-	@echo "==== Cleaning up Docker containers..."
-	docker-compose -f docker-compose.test.yml down -v
+	@which docker > /dev/null || (echo "Docker not found. Please install Docker." && exit 1)
+	@if docker compose version > /dev/null 2>&1; then \
+		COMPOSE_CMD="docker compose"; \
+	elif which docker-compose > /dev/null 2>&1; then \
+		COMPOSE_CMD="docker-compose"; \
+	else \
+		echo "Docker Compose not found. Please install Docker Compose."; \
+		exit 1; \
+	fi; \
+	$$COMPOSE_CMD -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test-runner; \
+	EXIT_CODE=$$?; \
+	echo "==== Cleaning up Docker containers..."; \
+	$$COMPOSE_CMD -f docker-compose.test.yml down -v; \
+	exit $$EXIT_CODE
 	@echo "==== Docker integration tests complete"
 
 # Code Quality
@@ -104,5 +114,5 @@ clean:
 clean-test:
 	@echo "==== Cleaning test artifacts..."
 	rm -rf test-results
-	docker-compose -f docker-compose.test.yml down -v 2>/dev/null || true
+	@docker compose -f docker-compose.test.yml down -v 2>/dev/null || docker-compose -f docker-compose.test.yml down -v 2>/dev/null || true
 	@echo "==== Test cleanup complete"
