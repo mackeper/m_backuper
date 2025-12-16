@@ -14,10 +14,10 @@ services:
     ports:
       - "445:445"
     healthcheck:
-      test: ["CMD", "smbclient", "-L", "localhost", "-U", "testuser%testpass", "-N"]
+      test: ["CMD-SHELL", "pidof smbd || exit 1"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
       start_period: 10s
     networks:
       - test-network

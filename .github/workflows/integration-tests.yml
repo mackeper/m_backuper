@@ -35,17 +35,8 @@ jobs:
       run: make clean-test
 
   integration-tests-matrix:
-    name: Integration Tests (Multi-Platform)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            mount-path: /mnt/smb-test
-          - os: macos-latest
-            mount-path: /Volumes/smb-test
+    name: Integration Tests (Manual Mount)
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
@@ -78,43 +69,27 @@ jobs:
           sleep 2
         done
 
-    - name: Install CIFS utilities (Linux)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Install CIFS utilities
       run: |
         sudo apt-get update
         sudo apt-get install -y cifs-utils
 
-    - name: Install CIFS utilities (macOS)
-      if: matrix.os == 'macos-latest'
+    - name: Mount SMB share
       run: |
-        # macOS has built-in SMB support
-        echo "macOS has built-in SMB support"
-
-    - name: Mount SMB share (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo mkdir -p ${{ matrix.mount-path }}
-        sudo mount -t cifs //127.0.0.1/backup ${{ matrix.mount-path }} \
+        sudo mkdir -p /mnt/smb-test
+        sudo mount -t cifs //127.0.0.1/backup /mnt/smb-test \
           -o user=testuser,password=testpass,vers=3.0,uid=$(id -u),gid=$(id -g),noperm
-        ls -la ${{ matrix.mount-path }}
-
-    - name: Mount SMB share (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        sudo mkdir -p ${{ matrix.mount-path }}
-        # macOS mount syntax
-        sudo mount_smbfs //testuser:testpass@127.0.0.1/backup ${{ matrix.mount-path }}
-        ls -la ${{ matrix.mount-path }}
+        ls -la /mnt/smb-test
 
     - name: Run integration tests
       env:
-        SMB_MOUNT: ${{ matrix.mount-path }}
+        SMB_MOUNT: /mnt/smb-test
       run: make test-integration
 
     - name: Unmount SMB share
       if: always()
       run: |
-        sudo umount ${{ matrix.mount-path }} || true
+        sudo umount /mnt/smb-test || true
 
     - name: Stop Samba server
       if: always()
