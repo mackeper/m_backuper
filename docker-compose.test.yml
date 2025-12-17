@@ -9,16 +9,18 @@ services:
       - USER=testuser;testpass
       - SHARE=backup;/backup;yes;no;no;testuser;testuser
       - PERMISSIONS=yes
+      - USERID=1000
+      - GROUPID=1000
     tmpfs:
       - /backup
     ports:
       - "445:445"
     healthcheck:
       test: ["CMD-SHELL", "netstat -an | grep -q ':445.*LISTEN' || exit 1"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
+      interval: 2s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     networks:
       - test-network
 
