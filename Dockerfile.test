@@ -30,10 +30,22 @@ echo "SMB Host: ${SMB_HOST}"
 echo "SMB Share: ${SMB_SHARE}"
 echo "Mount Point: ${SMB_MOUNT}"
 
-# Wait for Samba to be ready
+# Wait for Samba to be ready (max 60 seconds)
 echo "Waiting for Samba server..."
+RETRIES=30
+COUNT=0
 until smbclient -L "${SMB_HOST}" -U "${SMB_USER}%${SMB_PASS}" -N > /dev/null 2>&1; do
-    echo "Waiting for Samba server to be ready..."
+    COUNT=$((COUNT + 1))
+    if [ $COUNT -ge $RETRIES ]; then
+        echo "✗ Timed out waiting for Samba server after ${RETRIES} attempts"
+        echo "Attempting to connect to: ${SMB_HOST}"
+        echo "Debugging information:"
+        ping -c 3 "${SMB_HOST}" || true
+        echo "Trying smbclient with verbose output:"
+        smbclient -L "${SMB_HOST}" -U "${SMB_USER}%${SMB_PASS}" -N || true
+        exit 1
+    fi
+    echo "Waiting for Samba server to be ready... (${COUNT}/${RETRIES})"
     sleep 2
 done
 echo "Samba server is ready!"
