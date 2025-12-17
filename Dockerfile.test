@@ -18,9 +18,6 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Create directory for test results
-RUN mkdir -p /app/test-results
-
 # Script to mount SMB share and run tests
 COPY <<'EOF' /entrypoint.sh
 #!/bin/bash
@@ -82,9 +79,9 @@ fi
 # Run integration tests
 echo ""
 echo "=== Running Integration Tests ==="
-go test -v -tags=integration ./tests/integration/... -count=1 | tee /app/test-results/integration-tests.log
+go test -v -tags=integration ./tests/integration/... -count=1
 
-TEST_EXIT_CODE=${PIPESTATUS[0]}
+TEST_EXIT_CODE=$?
 
 # Unmount before exit
 echo ""
