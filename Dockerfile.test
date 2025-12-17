@@ -42,7 +42,7 @@ sleep 15
 
 RETRIES=30
 COUNT=0
-until smbclient -L "${SMB_HOST}" -U "${SMB_USER}%${SMB_PASS}" -N > /dev/null 2>&1; do
+until smbclient -L "${SMB_HOST}" -U "${SMB_USER}%${SMB_PASS}" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
     if [ $COUNT -ge $RETRIES ]; then
         echo "✗ Timed out waiting for Samba server after ${RETRIES} attempts"
