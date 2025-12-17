@@ -1,5 +1,9 @@
 # m_backuper
 
+[![CI](https://github.com/mackeper/m_backuper/actions/workflows/ci.yml/badge.svg)](https://github.com/mackeper/m_backuper/actions/workflows/ci.yml)
+[![Integration Tests](https://github.com/mackeper/m_backuper/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/mackeper/m_backuper/actions/workflows/integration-tests.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/mackeper/m_backuper)](https://github.com/mackeper/m_backuper/blob/main/go.mod)
+
 Incremental backup tool for backing up selected drives and files to network storage.
 
 ## Features
